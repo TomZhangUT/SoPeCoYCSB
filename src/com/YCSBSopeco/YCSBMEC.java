@@ -24,17 +24,15 @@ import com.yahoo.ycsb.measurements.exporter.MeasurementPackage;
 import com.yahoo.ycsb.measurements.exporter.SoPeCoMeasurementsExporter;
 
 /**
- * YCSBMEC is an example for a Measurement Environment
+ * YCSBMEC is a Measurement Environment
  * Controller (MEController). Each MEController has to extend the
  * AbstractMEController class which is contained in the
  * org.sopeco.core-VERSION-jar-with-dependencies.jar.
  * 
- * In this example we use the YCSBMEC MEController to
- * investigate the relationship between the response time of a matrix
- * multiplication operation (of different mathematical libraries) and the
- * corresponding matrix sizes.
+ * This MEController investigates the responses of key-value stores on
+ * manufactured workloads using the Yahoo Cloud Serving Benchmark
  * 
- * @author Alexander Wert, Christoph Heger
+ * @author Tom Zhang
  * 
  */
 public class YCSBMEC extends AbstractMEController {
@@ -64,10 +62,20 @@ public class YCSBMEC extends AbstractMEController {
 	 */
 	private static final String SOPECO_SAAS_URL = "localhost";
 
+	/**
+	 * Indicates the number of operations to perform before termination
+	 * (a value less than or equal to zero indicates no limit) 
+	 */
 	public static final String OPERATION_COUNT_PROPERTY="operationcount";
 
+	/**
+	 * Indicates the number of records to load
+	 */
 	public static final String RECORD_COUNT_PROPERTY="recordcount";
 
+	/**
+	 * Indicates the package which the workload file exists
+	 */
 	public static final String WORKLOAD_PROPERTY="workload";
 
 	/**
@@ -82,115 +90,193 @@ public class YCSBMEC extends AbstractMEController {
 	 */
 	public static final String MAX_EXECUTION_TIME = "maxexecutiontime";
 
+	/**
+	 * the list of ip addresses where the workload is run
+	 */
 	@InputParameter(namespace = "my.input")
 	String hosts= "localhost";
 
+	/**
+	 * the workload implementation to use
+	 */
 	@InputParameter(namespace = "my.input")
 	String workloadname = "com.yahoo.ycsb.workloads.CoreWorkload";
 
+	/**
+	 * the DB implementation to use
+	 */
 	@InputParameter(namespace = "my.input")
 	String dbname = "com.yahoo.ycsb.BasicDB";
 
+	/**
+	 * true to do transactions, false to insert data
+	 */
 	@InputParameter(namespace = "my.input")
 	boolean dotransactions = false;
 
+	/**
+	 * true to display updates while workload is running in stderr, 
+	 * false to hide updates
+	 */
 	@InputParameter(namespace = "my.input")
 	boolean status = true;
 
+	/**
+	 * histogram or time series storage of information
+	 */
 	@InputParameter(namespace = "my.input")
 	String measurementtype = "timeseries";
 
+	/**
+	 * the total number of threads 
+	 */
 	@InputParameter(namespace = "my.input")
 	int tcount = 1;
 
+	/**
+	 * the target number of operations per second. By default, the YCSB 
+	 * Client will try to do as many operations as it can. For example, 
+	 * if each operation takes 100 milliseconds on average, the Client will
+	 * do about 10 operations per second per worker thread. However, you 
+	 * can throttle the target number of operations per second. For example,
+	 * to generate a latency versus throughput curve, you can try different
+	 * target throughputs, and measure the resulting latency for each. Zero 
+	 * or negative input for default
+	 */
 	@InputParameter(namespace = "my.input")
 	int ttarget = 0;
 
+	/**
+	 * the number of records inserted
+	 */
 	@InputParameter(namespace = "my.input")
 	int recordcount= 1000;
 
+	/**
+	 * the maximum number of operations
+	 * (zero or negative for no limit)
+	 */
 	@InputParameter(namespace = "my.input")
 	int operationcount = 0;
 
+	/**
+	 * number of inserts 
+	 */
 	@InputParameter(namespace = "my.input")
 	int insertcount = 0;
 
+	/**
+	 * number of fields in the database
+	 */
 	@InputParameter(namespace = "my.input")
 	int fieldcount= 5;
 
+	/**
+	 * length of fields in the database
+	 */
 	@InputParameter(namespace = "my.input")
 	int fieldlength= 10;
 
+	/**
+	 * the maximum possible scan length of a workload 
+	 */
 	@InputParameter(namespace = "my.input")
 	int maxscanlength = 50;
 
+	/**
+	 * the number of seconds client threads
+	 * are active until threads are terminated
+	 */
 	@InputParameter(namespace = "my.input")
-	int maxexecutiontime = -1;
+	int maxexecutiontime = 60;
 
+	/**
+	 * fraction of reads in a generated workload
+	 */
 	@InputParameter(namespace = "my.input")
 	double readproportion= 0.95;
 
+	/**
+	 * fraction of inserts in a generated workload
+	 */
 	@InputParameter(namespace = "my.input")
 	double insertproportion= 0.05;
 
+	/**
+	 * fraction of scans in a generated workload
+	 */
 	@InputParameter(namespace = "my.input")
 	double scanproportion= 0.0;
 
+	/**
+	 * fraction of inputs in a generated workload
+	 */
 	@InputParameter(namespace = "my.input")
 	double inputproportion= 0.0;
 
+	/**
+	 * fraction of updates in a generated workload
+	 */
 	@InputParameter(namespace = "my.input")
 	double updateproportion= 0.0;
 
+	/**
+	 * identification for the status thread
+	 */
 	@InputParameter(namespace = "my.input")
 	String label = "";
+	
 	/**
-	 * The sole observation parameter is the response time. Each observation
-	 * parameter must be of the type ParameterValueList<T>, whereby T describes
-	 * the actual type of the observation parameter. In this case it is a Double
-	 * parameter. Observation parameter have to be marked with the @ObservationParameter
-	 * annotation!
+	 * runtime of the experiment in milliseconds
 	 */
 	@ObservationParameter(namespace = "my.output")
 	ParameterValueList<Integer> runtime;
 
-	/*
+	/**
+	 * average operations per a second for a workload
+	 */
 	@ObservationParameter(namespace = "my.output")
 	ParameterValueList<Double> throughput;
 
+	/**
+	 * Total number of operations
+	 */
 	@ObservationParameter(namespace = "my.output")
 	ParameterValueList<Integer> operations;
 
+	/**
+	 * average latency(ms) of the experiment
+	 */
 	@ObservationParameter(namespace = "my.output")
 	ParameterValueList<Double> averageLatency;
 
+	/**
+	 * minimum latency(ms) of the experiment
+	 */
 	@ObservationParameter(namespace = "my.output")
 	ParameterValueList<Integer> minLatency;
 
+	/**
+	 * maximum latency(ms) of the experiment
+	 */
 	@ObservationParameter(namespace = "my.output")
 	ParameterValueList<Integer> maxLatency;
 
+	/**
+	 * Latency(ms) to cover 95% of the operations
+	 */
 	@ObservationParameter(namespace = "my.output")
 	ParameterValueList<Integer> ninetyFifthPercentile;
 
+	/**
+	 * Latency(ms) to cover 99% of the operations
+	 */
 	@ObservationParameter(namespace = "my.output")
 	ParameterValueList<Integer> ninetyninePercentile;
 
-	/*
-	@ObservationParameter(namespace = "my.output")
-	ParameterValueList<HashMap<Integer,Integer>> returncodes;
-
-	@ObservationParameter(namespace = "my.output")
-	ParameterValueList<Vector<Integer>> histogram;
-
-	@ObservationParameter(namespace = "my.output")
-	ParameterValueList<HashMap<Integer,Integer>> averageTimes;
-	 */
-
 	/**
-	 * Constructor. Here, we define which termination conditions for an
-	 * experiment are supported by this MEController. If required, you can
-	 * specify your own termination conditions.
+	 * Constructor. Defines which termination conditions for an
+	 * experiment are supported by the MEController. 
 	 */
 	public YCSBMEC() {
 		addSupportedTerminationConditions(ExperimentTerminationCondition
@@ -204,7 +290,6 @@ public class YCSBMEC extends AbstractMEController {
 	@Override
 	protected void defineResultSet() {
 		addParameterObservationsToResult(runtime);
-		/*
 		addParameterObservationsToResult(throughput);
 		addParameterObservationsToResult(operations);
 		addParameterObservationsToResult(averageLatency);
@@ -212,15 +297,13 @@ public class YCSBMEC extends AbstractMEController {
 		addParameterObservationsToResult(maxLatency);
 		addParameterObservationsToResult(ninetyFifthPercentile);
 		addParameterObservationsToResult(ninetyninePercentile);
-		addParameterObservationsToResult(returncodes);
-		addParameterObservationsToResult(histogram);
-		addParameterObservationsToResult(averageTimes);
-		*/
-
 	}
 
+	/**
+	 * Sets the results of the experiment
+	 * @param mPack Object that stores YCSB Measurements
+	 */
 	protected void SetMeasurements(MeasurementPackage mPack){
-		/*
 		if (mPack==null){
 			LOGGER.debug("No Measurements.");
 		}
@@ -245,29 +328,7 @@ public class YCSBMEC extends AbstractMEController {
 		}
 		if (mPack.getNinetyFifthPercentile()>=0){
 			ninetyFifthPercentile.addValue(new Integer(mPack.getNinetyFifthPercentile()));
-		}*/
-
-		System.out.println ("Runtime: "+ mPack.getRuntime());
-		runtime.addValue(new Integer((int) mPack.getRuntime()));
-		
-		/*
-		throughput.addValue(new Double (mPack.getThroughput()));
-		operations.addValue(new Integer(mPack.getOperations()));
-		averageLatency.addValue(new Double(mPack.getAverageLatency()));
-		minLatency.addValue(new Integer(mPack.getMinLatency()));
-		maxLatency.addValue(new Integer(mPack.getMaxLatency()));
-		ninetyFifthPercentile.addValue(new Integer(mPack.getNinetyFifthPercentile()));
-		/*
-		if (!mPack.getReturncodes().isEmpty()){
-			returncodes.addValue(mPack.getReturncodes());
 		}
-		if (!mPack.getHistogram().isEmpty()){
-			histogram.addValue(mPack.getHistogram());
-		}
-		if (!mPack.getAverageTimes().isEmpty()){
-			averageTimes.addValue(mPack.getAverageTimes());
-		}
-		 */
 	}
 
 	/**
@@ -300,15 +361,22 @@ public class YCSBMEC extends AbstractMEController {
 	}
 
 	/**
-	 * Exports the measurements to either sysout or a file using the exporter
-	 * loaded from conf.
+	 * Exports the measurements to a MeasurementPackage for storage
 	 * @throws IOException Either failed to write to output stream or failed to close it.
 	 */
-	private void exportMeasurements(Properties props, int opcount, long runtime)
+	private void exportMeasurements(Properties props, int opcount, int runtime)
 			throws IOException
 			{
-		/*
-		SoPeCoMeasurementsExporter exporter = new SoPeCoMeasurementsExporter(new MeasurementPackage());
+		MeasurementPackage mPack = new MeasurementPackage();
+		boolean hist;
+		if (measurementtype.equals("histogram")){
+			hist=true;
+		}
+		else{
+			hist=false;
+		}
+		
+		SoPeCoMeasurementsExporter exporter = new SoPeCoMeasurementsExporter(mPack, hist);
 
 		exporter.write("OVERALL", "RunTime(ms)", runtime);
 		double throughput = 1000.0 * ((double) opcount) / ((double) runtime);
@@ -316,16 +384,12 @@ public class YCSBMEC extends AbstractMEController {
 
 		Measurements.getMeasurements().exportMeasurements(exporter);
 
-		SetMeasurements(exporter.getMeasurementPackage());
+		SetMeasurements(mPack);
 
 		if (exporter != null)
 		{
 			exporter.close();
 		}
-		*/
-	
-		
-
 			}
 
 	/**
@@ -361,12 +425,6 @@ public class YCSBMEC extends AbstractMEController {
 		props.setProperty("updateproportion", updateproportion+"");
 		props.setProperty(MAX_EXECUTION_TIME, maxexecutiontime+"");
 
-		//set up logging
-		//BasicConfigurator.configure();
-
-		//overwrite file properties with properties from the command line
-
-		//Issue #5 - remove call to stringPropertyNames to make compilable under Java 1.5
 		for (Enumeration<?> e=props.propertyNames(); e.hasMoreElements(); )
 		{
 			String prop=(String)e.nextElement();
@@ -392,7 +450,7 @@ public class YCSBMEC extends AbstractMEController {
 		}	 
 
 		LOGGER.info("YCSB Client 0.1");
-		LOGGER.error("Loading workload...");
+		LOGGER.info("Loading workload...");
 
 		//show a warning message that creating the workload is taking a while
 		//but only do so if it is taking longer than 2 seconds 
@@ -456,12 +514,10 @@ public class YCSBMEC extends AbstractMEController {
 		int opcount;
 		if (dotransactions)
 		{
-			System.out.println("Doing Transactions");
 			opcount=Integer.parseInt(props.getProperty(OPERATION_COUNT_PROPERTY,"0"));
 		}
 		else
 		{
-			System.out.println ("Not doing transactions");
 			if (props.containsKey(INSERT_COUNT_PROPERTY))
 			{
 				opcount=Integer.parseInt(props.getProperty(INSERT_COUNT_PROPERTY,"0"));
@@ -556,19 +612,16 @@ public class YCSBMEC extends AbstractMEController {
 			System.exit(0);
 		}
 
-		runtime.addValue(new Integer((int) (en - st)));
 		
 		try
 		{
-			exportMeasurements(props, opsDone, en - st);
+			exportMeasurements(props, opsDone,(int)(en - st));
 		} catch (IOException e)
 		{
 			System.err.println("Could not export measurements, error: " + e.getMessage());
 			e.printStackTrace();
 			System.exit(-1);
 		}
-
-		System.exit(0);
 		LOGGER.info("Finished experiment run");
 
 	}
