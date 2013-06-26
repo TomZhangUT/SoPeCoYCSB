@@ -376,7 +376,7 @@ public class YCSBMEC extends AbstractMEController {
 			hist=false;
 		}
 		
-		SoPeCoMeasurementsExporter exporter = new SoPeCoMeasurementsExporter(mPack, hist);
+		SoPeCoMeasurementsExporter exporter = new SoPeCoMeasurementsExporter(mPack);
 
 		exporter.write("OVERALL", "RunTime(ms)", runtime);
 		double throughput = 1000.0 * ((double) opcount) / ((double) runtime);
