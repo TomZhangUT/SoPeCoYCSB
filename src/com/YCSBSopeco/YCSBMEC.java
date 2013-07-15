@@ -89,7 +89,13 @@ public class YCSBMEC extends AbstractMEController {
 	 * The maximum amount of time (in seconds) for which the benchmark will be run.
 	 */
 	public static final String MAX_EXECUTION_TIME = "maxexecutiontime";
-
+	
+	/**
+	 * the number of nodes the DB will operate on
+	 */
+	@InputParameter(namespace = "my.input")
+	int numDBNodes= 1;
+	
 	/**
 	 * the list of ip addresses where the workload is run
 	 */
@@ -376,7 +382,7 @@ public class YCSBMEC extends AbstractMEController {
 			hist=false;
 		}
 		
-		SoPeCoMeasurementsExporter exporter = new SoPeCoMeasurementsExporter(mPack);
+		SoPeCoMeasurementsExporter exporter = new SoPeCoMeasurementsExporter(mPack, hist);
 
 		exporter.write("OVERALL", "RunTime(ms)", runtime);
 		double throughput = 1000.0 * ((double) opcount) / ((double) runtime);
@@ -399,6 +405,38 @@ public class YCSBMEC extends AbstractMEController {
 	 */
 	@Override
 	protected void runExperiment() throws ExperimentFailedException {
+		
+		LOGGER.info("Starting Cassandra");
+		String[] nodeIPAddresses = {"10.0.1.1", "10.0.1.2","10.0.1.3","10.0.1.4","10.01.1.5"};
+		String[] tokens = new String [numDBNodes];
+		String tokensCMD="";
+				
+		//Calculate Tokens
+		for (int i=0;i<numDBNodes;i++)
+		{
+		    tokens[i] =  Double.toString(i*(Math.pow(2,127))/numDBNodes);
+		    tokensCMD=tokensCMD.concat(tokens[i]).concat(" ");
+		}
+		
+		String nodeList="";
+		
+		for (int i=0;i<numDBNodes;i++)
+		{
+			nodeList=nodeList.concat(nodeIPAddresses[i]);
+			if (i<numDBNodes-1)
+			{
+				nodeList=nodeList.concat(",");
+			}
+		}
+		
+		final String command = "runCassandra.sh";
+		
+		try {
+			Process p = new ProcessBuilder(command, nodeList, tokensCMD).start();
+		} catch (IOException e1) {
+			LOGGER.error("Cassandra failed to start");
+		}
+		
 		LOGGER.info("Starting experiment run");
 
 		Properties props=new Properties();
