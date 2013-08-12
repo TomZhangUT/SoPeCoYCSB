@@ -12,16 +12,8 @@ import org.sopeco.persistence.entities.exceptions.ExperimentFailedException;
 
 import java.io.*;
 import java.util.*;
-
-import com.yahoo.ycsb.DB;
-import com.yahoo.ycsb.DBFactory;
-import com.yahoo.ycsb.TerminatorThread;
-import com.yahoo.ycsb.UnknownDBException;
-import com.yahoo.ycsb.Workload;
-import com.yahoo.ycsb.WorkloadException;
-import com.yahoo.ycsb.measurements.Measurements;
-import com.yahoo.ycsb.measurements.exporter.MeasurementPackage;
-import com.yahoo.ycsb.measurements.exporter.SoPeCoMeasurementsExporter;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * YCSBMEC is a Measurement Environment
@@ -55,7 +47,7 @@ public class YCSBMEC extends AbstractMEController {
 	/**
 	 * Port at which the SoPeCo SaaS instance is listening
 	 */
-	private static final int SOPECO_SAAS_PORT = 8089;
+	private static final int SOPECO_SAAS_PORT = 18089;
 
 	/**
 	 * Address of the SoPeCo SaaS instance to register
@@ -90,6 +82,13 @@ public class YCSBMEC extends AbstractMEController {
 	 */
 	public static final String MAX_EXECUTION_TIME = "maxexecutiontime";
 	
+	
+	/**
+	 * the number of nodes the DB will operate on
+	 */
+	@InputParameter(namespace = "my.input")
+	String scriptPath= "/home/tom/git/SoPeCoYCSB/res";
+	
 	/**
 	 * the number of nodes the DB will operate on
 	 */
@@ -112,26 +111,13 @@ public class YCSBMEC extends AbstractMEController {
 	 * the DB implementation to use
 	 */
 	@InputParameter(namespace = "my.input")
-	String dbname = "com.yahoo.ycsb.BasicDB";
+	String dbname = "cassandra-10";
 
 	/**
 	 * true to do transactions, false to insert data
 	 */
 	@InputParameter(namespace = "my.input")
 	boolean dotransactions = false;
-
-	/**
-	 * true to display updates while workload is running in stderr, 
-	 * false to hide updates
-	 */
-	@InputParameter(namespace = "my.input")
-	boolean status = true;
-
-	/**
-	 * histogram or time series storage of information
-	 */
-	@InputParameter(namespace = "my.input")
-	String measurementtype = "timeseries";
 
 	/**
 	 * the total number of threads 
@@ -194,7 +180,7 @@ public class YCSBMEC extends AbstractMEController {
 	 * are active until threads are terminated
 	 */
 	@InputParameter(namespace = "my.input")
-	int maxexecutiontime = 60;
+	int maxexecutiontime = 30;
 
 	/**
 	 * fraction of reads in a generated workload
@@ -225,12 +211,6 @@ public class YCSBMEC extends AbstractMEController {
 	 */
 	@InputParameter(namespace = "my.input")
 	double updateproportion= 0.0;
-
-	/**
-	 * identification for the status thread
-	 */
-	@InputParameter(namespace = "my.input")
-	String label = "";
 	
 	/**
 	 * runtime of the experiment in milliseconds
@@ -301,40 +281,6 @@ public class YCSBMEC extends AbstractMEController {
 		addParameterObservationsToResult(averageLatency);
 		addParameterObservationsToResult(minLatency);
 		addParameterObservationsToResult(maxLatency);
-		addParameterObservationsToResult(ninetyFifthPercentile);
-		addParameterObservationsToResult(ninetyninePercentile);
-	}
-
-	/**
-	 * Sets the results of the experiment
-	 * @param mPack Object that stores YCSB Measurements
-	 */
-	protected void SetMeasurements(MeasurementPackage mPack){
-		if (mPack==null){
-			LOGGER.debug("No Measurements.");
-		}
-		if (mPack.getRuntime()>=0){
-			System.out.println ("Runtime: "+ mPack.getRuntime());
-			runtime.addValue(new Integer((int) mPack.getRuntime()));
-		}
-		if (mPack.getThroughput()>=0){
-			throughput.addValue(new Double (mPack.getThroughput()));
-		}
-		if (mPack.getOperations()>=0){
-			operations.addValue(new Integer(mPack.getOperations()));
-		}
-		if (mPack.getAverageLatency()>=0){
-			averageLatency.addValue(new Double(mPack.getAverageLatency()));
-		}
-		if (mPack.getMinLatency()>=0){
-			minLatency.addValue(new Integer(mPack.getMinLatency()));
-		}
-		if (mPack.getMaxLatency()>=0){
-			maxLatency.addValue(new Integer(mPack.getMaxLatency()));
-		}
-		if (mPack.getNinetyFifthPercentile()>=0){
-			ninetyFifthPercentile.addValue(new Integer(mPack.getNinetyFifthPercentile()));
-		}
 	}
 
 	/**
@@ -365,39 +311,23 @@ public class YCSBMEC extends AbstractMEController {
 	protected void prepareExperimentSeries() {
 		LOGGER.info("Preparing experiment series - nothing todo");
 	}
-
-	/**
-	 * Exports the measurements to a MeasurementPackage for storage
-	 * @throws IOException Either failed to write to output stream or failed to close it.
-	 */
-	private void exportMeasurements(Properties props, int opcount, int runtime)
-			throws IOException
-			{
-		MeasurementPackage mPack = new MeasurementPackage();
-		boolean hist;
-		if (measurementtype.equals("histogram")){
-			hist=true;
-		}
-		else{
-			hist=false;
-		}
-		
-		SoPeCoMeasurementsExporter exporter = new SoPeCoMeasurementsExporter(mPack, hist);
-
-		exporter.write("OVERALL", "RunTime(ms)", runtime);
-		double throughput = 1000.0 * ((double) opcount) / ((double) runtime);
-		exporter.write("OVERALL", "Throughput(ops/sec)", throughput);
-
-		Measurements.getMeasurements().exportMeasurements(exporter);
-
-		SetMeasurements(mPack);
-
-		if (exporter != null)
-		{
-			exporter.close();
-		}
-			}
-
+	
+	protected int findInteger(String line)
+	{
+		Pattern p = Pattern.compile("[0-9]+");
+		Matcher m = p.matcher(line); 
+		m.find();
+		return Integer.parseInt(m.group());
+	}
+	
+	protected double findDouble(String line)
+	{
+		Pattern p = Pattern.compile("\\d*\\.\\d+");
+		Matcher m = p.matcher(line); 
+		m.find();
+		return Double.parseDouble(m.group());
+	}
+ 
 	/**
 	 * Executes a single experiment run. The values of all parameters annotated
 	 * with @InputParameter are set automatically, such that the parameters can
@@ -406,260 +336,114 @@ public class YCSBMEC extends AbstractMEController {
 	@Override
 	protected void runExperiment() throws ExperimentFailedException {
 		
+		LOGGER.info("Starting experiment run");
+		
 		LOGGER.info("Starting Cassandra");
-		String[] nodeIPAddresses = {"10.0.1.1", "10.0.1.2","10.0.1.3","10.0.1.4","10.01.1.5"};
-		String[] tokens = new String [numDBNodes];
-		String tokensCMD="";
-				
-		//Calculate Tokens
-		for (int i=0;i<numDBNodes;i++)
-		{
-		    tokens[i] =  Double.toString(i*(Math.pow(2,127))/numDBNodes);
-		    tokensCMD=tokensCMD.concat(tokens[i]).concat(" ");
-		}
 		
-		String nodeList="";
-		
-		for (int i=0;i<numDBNodes;i++)
-		{
-			nodeList=nodeList.concat(nodeIPAddresses[i]);
-			if (i<numDBNodes-1)
-			{
-				nodeList=nodeList.concat(",");
-			}
-		}
-		
-		final String command = "runCassandra.sh";
+		Thread cassandraThread = new Thread(new CassandraThread(numDBNodes, scriptPath));
+        cassandraThread.start();
 		
 		try {
-			Process p = new ProcessBuilder(command, nodeList, tokensCMD).start();
-		} catch (IOException e1) {
+			Thread.sleep(60000);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+		
+		String line;
+		String command="./runYCSB.sh";
+		List<String> list = new ArrayList<String>();
+		list.add(command);
+		list.add(Boolean.toString(dotransactions));
+		list.add(dbname);
+		list.add(workloadname);
+		list.add(hosts);
+		list.add(Integer.toString(tcount));
+		list.add(Integer.toString(ttarget));
+		list.add(Integer.toString(recordcount));
+		list.add(Integer.toString(operationcount));
+		list.add(Integer.toString(insertcount));
+		list.add(Integer.toString(fieldcount));
+		list.add(Integer.toString(fieldlength));
+		list.add(Integer.toString(maxscanlength));
+		list.add(Integer.toString(maxexecutiontime));
+		list.add(Double.toString(readproportion));
+		list.add(Double.toString(insertproportion));
+		list.add(Double.toString(scanproportion));
+		list.add(Double.toString(inputproportion));
+		list.add(Double.toString(updateproportion));
+		
+		try {
+			ProcessBuilder pb = new ProcessBuilder(list);
+            pb.directory(new File(scriptPath));
+			pb.redirectErrorStream(true);
+			Process p = pb.start();
+			InputStream stdout = p.getInputStream ();
+			
+			BufferedReader reader = new BufferedReader (new InputStreamReader(stdout));
+			while ((line = reader.readLine ()) != null) {
+				LOGGER.info ("Stdout: " + line);
+				if (line.contains("RunTime(ms)"))
+				{
+					runtime.addValue(new Integer(findInteger(line)));
+				}
+				else if (line.contains("Throughput(ops/sec)"))
+				{
+					throughput.addValue(new Double (findDouble(line)));
+				}
+				else if (line.contains("Operations"))
+				{
+					operations.addValue(new Integer(findInteger(line)));
+				}
+				else if (line.contains("AverageLatency(us)"))
+				{
+					averageLatency.addValue(new Double (findDouble(line)));
+				}
+				else if (line.contains("MinLatency(us)"))
+				{
+					minLatency.addValue(new Integer(findInteger(line)));
+				}
+				else if (line.contains("MaxLatency(us)"))
+				{
+					maxLatency.addValue(new Integer(findInteger(line)));
+				}
+			}
+			int return_code=p.waitFor();
+			LOGGER.info("Return Code:" + return_code);
+		} catch (IOException e) {
+			LOGGER.error("YCSB failed to run");
+			e.printStackTrace();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+		
+		command="./shutdownCassandra.sh";
+		try {
+			ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes));
+			//ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes));
+            pb.directory(new File(scriptPath));
+			pb.redirectErrorStream(true);
+			Process p = pb.start();
+			InputStream stdout = p.getInputStream ();
+			
+			BufferedReader reader = new BufferedReader (new InputStreamReader(stdout));
+			while ((line = reader.readLine ()) != null) {
+				LOGGER.info ("Stdout: " + line);
+			}
+			int return_code=p.waitFor();
+			LOGGER.info("Return Code:" + return_code);
+		} catch (IOException e) {
 			LOGGER.error("Cassandra failed to start");
+			e.printStackTrace();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
 		}
 		
-		LOGGER.info("Starting experiment run");
-
-		Properties props=new Properties();
-		Properties fileprops=new Properties();
-
-		int threadcount=1;
-		int target=0;
-
-		props.setProperty("threadcount", tcount+"");
-		props.setProperty("target", ttarget+"");
-		props.setProperty("db",dbname);
-		props.setProperty(WORKLOAD_PROPERTY, workloadname);
-		props.setProperty("hosts", hosts);
-		props.setProperty(RECORD_COUNT_PROPERTY, recordcount+"");
-		props.setProperty(INSERT_COUNT_PROPERTY, insertcount+"");
-		props.setProperty(OPERATION_COUNT_PROPERTY, operationcount+"");
-		props.setProperty("fieldcount", fieldcount+"");
-		props.setProperty("fieldlength", fieldlength+"");
-		props.setProperty("maxscanlength", maxscanlength+"");
-		props.setProperty("measurementtype", measurementtype);
-		props.setProperty("readproportion", readproportion+"");
-		props.setProperty("insertproportion", insertproportion+"");
-		props.setProperty("scanproportion", scanproportion+"");
-		props.setProperty("updateproportion", updateproportion+"");
-		props.setProperty(MAX_EXECUTION_TIME, maxexecutiontime+"");
-
-		for (Enumeration<?> e=props.propertyNames(); e.hasMoreElements(); )
-		{
-			String prop=(String)e.nextElement();
-
-			fileprops.setProperty(prop,props.getProperty(prop));
-		}
-
-		props=fileprops;
-
-		long maxExecutionTime = Integer.parseInt(props.getProperty(MAX_EXECUTION_TIME, "0"));
-
-		//get number of threads, target and db
-		threadcount=Integer.parseInt(props.getProperty("threadcount","1"));
-		dbname=props.getProperty("db","com.yahoo.ycsb.BasicDB");
-		target=Integer.parseInt(props.getProperty("target","0"));
-
-		//compute the target throughput
-		double targetperthreadperms=-1;
-		if (target>0)
-		{
-			double targetperthread=((double)target)/((double)threadcount);
-			targetperthreadperms=targetperthread/1000.0;
-		}	 
-
-		LOGGER.info("YCSB Client 0.1");
-		LOGGER.info("Loading workload...");
-
-		//show a warning message that creating the workload is taking a while
-		//but only do so if it is taking longer than 2 seconds 
-		//(showing the message right away if the setup wasn't taking very long was confusing people)
-		Thread warningthread=new Thread() 
-		{
-			public void run()
-			{
-				try
-				{
-					sleep(2000);
-				}
-				catch (InterruptedException e)
-				{
-					return;
-				}
-				LOGGER.error("might take a few minutes for large data sets");
-			}
-		};
-
-		warningthread.start();
-
-		//set up measurements
-		Measurements.setProperties(props);
-
-		//load the workload
-		ClassLoader classLoader = YCSBMEC.class.getClassLoader();
-
-		Workload workload=null;
-
-		try 
-		{
-			Class<?> workloadclass = classLoader.loadClass(props.getProperty(WORKLOAD_PROPERTY));
-
-			workload=(Workload)workloadclass.newInstance();
-		}
-		catch (Exception e) 
-		{  
+		try {
+			cassandraThread.join();
+		} catch (InterruptedException e) {
 			e.printStackTrace();
-			e.printStackTrace(System.out);
-			System.exit(0);
 		}
-
-		try
-		{
-			workload.init(props);
-		}
-		catch (WorkloadException e)
-		{
-			e.printStackTrace();
-			e.printStackTrace(System.out);
-			System.exit(0);
-		}
-
-		warningthread.interrupt();
-
-		//run the workload
-
-		LOGGER.info("Starting test.");
-
-		int opcount;
-		if (dotransactions)
-		{
-			opcount=Integer.parseInt(props.getProperty(OPERATION_COUNT_PROPERTY,"0"));
-		}
-		else
-		{
-			if (props.containsKey(INSERT_COUNT_PROPERTY))
-			{
-				opcount=Integer.parseInt(props.getProperty(INSERT_COUNT_PROPERTY,"0"));
-			}
-			else
-			{
-				opcount=Integer.parseInt(props.getProperty(RECORD_COUNT_PROPERTY,"0"));
-			}
-		}
-
-		Vector<Thread> threads=new Vector<Thread>();
-
-		for (int threadid=0; threadid<threadcount; threadid++)
-		{
-			DB db=null;
-			try
-			{
-				db=DBFactory.newDB(dbname,props);
-			}
-			catch (UnknownDBException e)
-			{
-				System.out.println("Unknown DB "+dbname);
-				System.exit(0);
-			}
-
-			Thread t=new ClientThread(db,dotransactions,workload,threadid,threadcount,props,opcount/threadcount,targetperthreadperms);
-
-			threads.add(t);
-			//t.start();
-		}
-
-		StatusThread statusthread=null;
-
-		if (status)
-		{
-			boolean standardstatus=false;
-			if (props.getProperty("measurementtype","").compareTo("timeseries")==0) 
-			{
-				standardstatus=true;
-			}	
-			statusthread=new StatusThread(threads,label,standardstatus);
-			statusthread.start();
-		}
-
-		long st=System.currentTimeMillis();
-
-		for (Thread t : threads)
-		{
-			t.start();
-		}
-
-		Thread terminator = null;
-
-		if (maxExecutionTime > 0) {
-			terminator = new TerminatorThread(maxExecutionTime, threads, workload);
-			terminator.start();
-		}
-
-		int opsDone = 0;
-
-		for (Thread t : threads)
-		{
-			try
-			{
-				t.join();
-				opsDone += ((ClientThread)t).getOpsDone();
-			}
-			catch (InterruptedException e)
-			{
-			}
-		}
-
-		long en=System.currentTimeMillis();
-
-		if (terminator != null && !terminator.isInterrupted()) {
-			terminator.interrupt();
-		}
-
-		if (status)
-		{
-			statusthread.interrupt();
-		}
-
-		try
-		{
-			workload.cleanup();
-		}
-		catch (WorkloadException e)
-		{
-			e.printStackTrace();
-			e.printStackTrace(System.out);
-			System.exit(0);
-		}
-
 		
-		try
-		{
-			exportMeasurements(props, opsDone,(int)(en - st));
-		} catch (IOException e)
-		{
-			System.err.println("Could not export measurements, error: " + e.getMessage());
-			e.printStackTrace();
-			System.exit(-1);
-		}
 		LOGGER.info("Finished experiment run");
 
 	}
