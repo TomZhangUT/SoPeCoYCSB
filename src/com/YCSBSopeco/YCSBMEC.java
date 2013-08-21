@@ -90,16 +90,22 @@ public class YCSBMEC extends AbstractMEController {
 	String scriptPath= "/home/tom/git/SoPeCoYCSB/res";
 	
 	/**
-	 * the number of nodes the DB will operate on
+	 * the number of nodes the DB will operate on for that experiment run. Counts from the first node in the host list. 
 	 */
 	@InputParameter(namespace = "my.input")
 	int numDBNodes= 1;
 	
 	/**
-	 * the list of ip addresses where the workload is run
+	 * the list of ip addresses where the db is run
 	 */
 	@InputParameter(namespace = "my.input")
 	String hosts= "localhost";
+	
+	/**
+	 * the list of ip addresses where the workload is run
+	 */
+	@InputParameter(namespace = "my.input")
+	String clients= "localhost";
 
 	/**
 	 * the workload implementation to use
@@ -340,11 +346,28 @@ public class YCSBMEC extends AbstractMEController {
 		
 		LOGGER.info("Starting Cassandra");
 		
-		Thread cassandraThread = new Thread(new CassandraThread(numDBNodes, scriptPath));
+		List<String> hostList = Arrays.asList(hosts.split(","));
+		
+		String startString="";
+		String expHosts = startString;
+		
+		int size = Math.max(1, Math.min(numDBNodes, hostList.size()));
+		
+		for (int a=0;a<size;a++)
+		{
+			expHosts=expHosts.concat(hostList.get(a));
+			if (a != size-1)
+			{
+				expHosts=expHosts.concat(",");
+			}
+			
+		}
+		
+		Thread cassandraThread = new Thread(new CassandraThread(numDBNodes, expHosts, scriptPath));
         cassandraThread.start();
 		
 		try {
-			Thread.sleep(60000);
+			Thread.sleep(120000);
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
@@ -356,7 +379,7 @@ public class YCSBMEC extends AbstractMEController {
 		list.add(Boolean.toString(dotransactions));
 		list.add(dbname);
 		list.add(workloadname);
-		list.add(hosts);
+		list.add(expHosts);
 		list.add(Integer.toString(tcount));
 		list.add(Integer.toString(ttarget));
 		list.add(Integer.toString(recordcount));
@@ -418,7 +441,7 @@ public class YCSBMEC extends AbstractMEController {
 		
 		command="./shutdownCassandra.sh";
 		try {
-			ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes));
+			ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes), expHosts);
 			//ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes));
             pb.directory(new File(scriptPath));
 			pb.redirectErrorStream(true);

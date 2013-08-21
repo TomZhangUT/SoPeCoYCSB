@@ -13,6 +13,7 @@ public class CassandraThread implements Runnable {
 
 	private int numDBNodes;
 	private String scriptPath;
+	private String hosts;
 	
 	/**	
 	 * Logger used for debugging and log-information.
@@ -20,10 +21,11 @@ public class CassandraThread implements Runnable {
 	private static final Logger LOGGER = LoggerFactory
 			.getLogger(YCSBMEC.class);
 	
-	public CassandraThread(int nodes, String path)
+	public CassandraThread(int nodes, String expHosts, String path)
 	{
 			numDBNodes=nodes;
 			scriptPath=path;
+			hosts=expHosts;
 	}
 	
 	@Override
@@ -33,7 +35,7 @@ public class CassandraThread implements Runnable {
 		//String command = scriptPath+"/runCassandra.sh";
 		
 		try {
-			ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes));
+			ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes), hosts);
 			//ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes));
             pb.directory(new File(scriptPath));
 			pb.redirectErrorStream(true);
