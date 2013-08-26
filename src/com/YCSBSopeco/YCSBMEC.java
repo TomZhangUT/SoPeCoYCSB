@@ -318,6 +318,16 @@ public class YCSBMEC extends AbstractMEController {
 		LOGGER.info("Preparing experiment series - nothing todo");
 	}
 	
+	protected void filteredOutput(String line)
+	{
+		Pattern pattern = Pattern.compile(".+(READ]|INSERT]),.+\\d+\\,.+\\d+");
+		Matcher m = pattern.matcher(line); 
+		if (!m.find())
+		{
+			LOGGER.info ("Stdout: " + line);
+		}
+	}
+	
 	protected int findInteger(String line)
 	{
 		Pattern p = Pattern.compile("[0-9]+");
@@ -404,7 +414,7 @@ public class YCSBMEC extends AbstractMEController {
 			
 			BufferedReader reader = new BufferedReader (new InputStreamReader(stdout));
 			while ((line = reader.readLine ()) != null) {
-				LOGGER.info ("Stdout: " + line);
+				filteredOutput(line);
 				if (line.contains("RunTime(ms)"))
 				{
 					runtime.addValue(new Integer(findInteger(line)));
@@ -430,6 +440,7 @@ public class YCSBMEC extends AbstractMEController {
 					maxLatency.addValue(new Integer(findInteger(line)));
 				}
 			}
+			
 			int return_code=p.waitFor();
 			LOGGER.info("Return Code:" + return_code);
 		} catch (IOException e) {
