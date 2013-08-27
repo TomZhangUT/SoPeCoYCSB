@@ -145,7 +145,7 @@ public class YCSBMEC extends AbstractMEController {
 	 * the DB implementation to use
 	 */
 	@InputParameter(namespace = "ycsb.workload")
-	String dbname = "cassandra-10";
+	String dbname = "cassandra-8";
 
 	/**
 	 * true to do transactions, false to insert data
@@ -395,7 +395,7 @@ public class YCSBMEC extends AbstractMEController {
 		String line;
 		String command=DBshutdown;
 		try {
-			ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes), expHosts);
+			ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes), expHosts, DBdataDirectory);
 			pb.directory(new File(scriptPath));
 			pb.redirectErrorStream(true);
 			Process p = pb.start();
