@@ -15,6 +15,8 @@ public class CassandraThread implements Runnable {
 	private String scriptPath;
 	private String hosts;
 	
+	private boolean finished = false;
+	
 	/**	
 	 * Logger used for debugging and log-information.
 	 */
@@ -26,6 +28,12 @@ public class CassandraThread implements Runnable {
 			numDBNodes=nodes;
 			scriptPath=path;
 			hosts=expHosts;
+			finished=false;
+	}
+	
+	public boolean isFinished()
+	{
+		return finished;
 	}
 	
 	@Override
@@ -46,12 +54,18 @@ public class CassandraThread implements Runnable {
 			BufferedReader reader = new BufferedReader (new InputStreamReader(stdout));
 			while ((line = reader.readLine ()) != null) {
 				LOGGER.info ("Stdout: " + line);
+				if (line.contains("Startup completed!"))
+				{
+					LOGGER.debug("Set finished to true");
+					finished = true;
+				}
 			}
 			
 			//int return_code=p.waitFor();
 			//LOGGER.info("Return Code:" + return_code);
 		} catch (IOException e) {
 			e.printStackTrace();
+			LOGGER.error("Check script path");
 		}
 	}
 

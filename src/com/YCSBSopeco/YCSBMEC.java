@@ -81,26 +81,26 @@ public class YCSBMEC extends AbstractMEController {
 	 * The maximum amount of time (in seconds) for which the benchmark will be run.
 	 */
 	public static final String MAX_EXECUTION_TIME = "maxexecutiontime";
-	
-	
+
+
 	/**
 	 * the number of nodes the DB will operate on
 	 */
 	@InputParameter(namespace = "my.input")
 	String scriptPath= "/home/tom/git/SoPeCoYCSB/res";
-	
+
 	/**
 	 * the number of nodes the DB will operate on for that experiment run. Counts from the first node in the host list. 
 	 */
 	@InputParameter(namespace = "my.input")
 	int numDBNodes= 1;
-	
+
 	/**
 	 * the list of ip addresses where the db is run
 	 */
 	@InputParameter(namespace = "my.input")
 	String hosts= "localhost";
-	
+
 	/**
 	 * the list of ip addresses where the workload is run
 	 */
@@ -217,7 +217,7 @@ public class YCSBMEC extends AbstractMEController {
 	 */
 	@InputParameter(namespace = "my.input")
 	double updateproportion= 0.0;
-	
+
 	/**
 	 * runtime of the experiment in milliseconds
 	 */
@@ -317,17 +317,17 @@ public class YCSBMEC extends AbstractMEController {
 	protected void prepareExperimentSeries() {
 		LOGGER.info("Preparing experiment series - nothing todo");
 	}
-	
+
 	protected void filteredOutput(String line)
 	{
-		Pattern pattern = Pattern.compile(".+(READ]|INSERT]),.+\\d+\\,.+\\d+");
+		Pattern pattern = Pattern.compile(".*(READ]|INSERT]).*,.*\\d+\\,.*\\d+");
 		Matcher m = pattern.matcher(line); 
 		if (!m.find())
 		{
 			LOGGER.info ("Stdout: " + line);
 		}
 	}
-	
+
 	protected int findInteger(String line)
 	{
 		Pattern p = Pattern.compile("[0-9]+");
@@ -335,7 +335,7 @@ public class YCSBMEC extends AbstractMEController {
 		m.find();
 		return Integer.parseInt(m.group());
 	}
-	
+
 	protected double findDouble(String line)
 	{
 		Pattern p = Pattern.compile("\\d*\\.\\d+");
@@ -343,7 +343,33 @@ public class YCSBMEC extends AbstractMEController {
 		m.find();
 		return Double.parseDouble(m.group());
 	}
- 
+	
+	protected void abortRun(String expHosts)
+	{
+		String line;
+		String command="./shutdownCassandra.sh";
+		try {
+			ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes), expHosts);
+			//ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes));
+			pb.directory(new File(scriptPath));
+			pb.redirectErrorStream(true);
+			Process p = pb.start();
+			InputStream stdout = p.getInputStream ();
+
+			BufferedReader reader = new BufferedReader (new InputStreamReader(stdout));
+			while ((line = reader.readLine ()) != null) {
+				LOGGER.info ("Stdout: " + line);
+			}
+			int return_code=p.waitFor();
+			LOGGER.info("Return Code:" + return_code);
+		} catch (IOException e) {
+			LOGGER.error("Cassandra failed to start");
+			e.printStackTrace();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+	}
+
 	/**
 	 * Executes a single experiment run. The values of all parameters annotated
 	 * with @InputParameter are set automatically, such that the parameters can
@@ -351,18 +377,18 @@ public class YCSBMEC extends AbstractMEController {
 	 */
 	@Override
 	protected void runExperiment() throws ExperimentFailedException {
-		
+
 		LOGGER.info("Starting experiment run");
-		
+
 		LOGGER.info("Starting Cassandra");
-		
+
 		List<String> hostList = Arrays.asList(hosts.split(","));
-		
+
 		String startString="";
 		String expHosts = startString;
-		
+
 		int size = Math.max(1, Math.min(numDBNodes, hostList.size()));
-		
+
 		for (int a=0;a<size;a++)
 		{
 			expHosts=expHosts.concat(hostList.get(a));
@@ -370,20 +396,66 @@ public class YCSBMEC extends AbstractMEController {
 			{
 				expHosts=expHosts.concat(",");
 			}
-			
+
+		}
+
+		CassandraThread cRun = new CassandraThread(numDBNodes, expHosts, scriptPath);
+		Thread dbThread = new Thread(cRun);
+		dbThread.start();
+		while (!cRun.isFinished())
+		{
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+				LOGGER.error("Database not started correctly. Aborting experiment run.");
+				abortRun(expHosts);
+				try {
+					dbThread.join();
+				} catch (InterruptedException e1) {
+					e1.printStackTrace();
+				}
+				return;
+			}
 		}
 		
-		Thread cassandraThread = new Thread(new CassandraThread(numDBNodes, expHosts, scriptPath));
-        cassandraThread.start();
-		
-		try {
-			Thread.sleep(120000);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
+		try 
+		{
+			Thread.sleep(5000);
+		}
+		catch (InterruptedException e)
+		{
+			LOGGER.error("Thread interrupted");
 		}
 		
 		String line;
-		String command="./runYCSB.sh";
+		String command="./setupCassandra.sh";
+		try {
+			ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes), expHosts);
+			//ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes));
+			pb.directory(new File(scriptPath));
+			pb.redirectErrorStream(true);
+			Process p = pb.start();
+			InputStream stdout = p.getInputStream ();
+
+			BufferedReader reader = new BufferedReader (new InputStreamReader(stdout));
+			while ((line = reader.readLine ()) != null) {
+				LOGGER.info ("Stdout: " + line);
+			}
+			int return_code=p.waitFor();
+			LOGGER.info("Return Code:" + return_code);
+		} catch (Exception e) {
+			LOGGER.error("Did not create database necessary for YCSB. Aborting experiment run");
+			abortRun(expHosts);
+			try {
+				dbThread.join();
+			} catch (InterruptedException e1) {
+				e1.printStackTrace();
+			}
+			return;
+		} 
+		
+		command="./runYCSB.sh";
 		List<String> list = new ArrayList<String>();
 		list.add(command);
 		list.add(Boolean.toString(dotransactions));
@@ -404,17 +476,32 @@ public class YCSBMEC extends AbstractMEController {
 		list.add(Double.toString(scanproportion));
 		list.add(Double.toString(inputproportion));
 		list.add(Double.toString(updateproportion));
-		
+		list.add(clients);
+
 		try {
 			ProcessBuilder pb = new ProcessBuilder(list);
-            pb.directory(new File(scriptPath));
+			pb.directory(new File(scriptPath));
 			pb.redirectErrorStream(true);
 			Process p = pb.start();
 			InputStream stdout = p.getInputStream ();
-			
+
 			BufferedReader reader = new BufferedReader (new InputStreamReader(stdout));
 			while ((line = reader.readLine ()) != null) {
 				filteredOutput(line);
+				
+				if (line.contains("InvalidRequestException"))
+				{
+					LOGGER.error("Improper Setup. Aborting Experiment Run");
+					abortRun(expHosts);
+					p.destroy();
+					try {
+						dbThread.join();
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+					return;
+				}
+				
 				if (line.contains("RunTime(ms)"))
 				{
 					runtime.addValue(new Integer(findInteger(line)));
@@ -440,7 +527,7 @@ public class YCSBMEC extends AbstractMEController {
 					maxLatency.addValue(new Integer(findInteger(line)));
 				}
 			}
-			
+
 			int return_code=p.waitFor();
 			LOGGER.info("Return Code:" + return_code);
 		} catch (IOException e) {
@@ -449,31 +536,11 @@ public class YCSBMEC extends AbstractMEController {
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
-		
-		command="./shutdownCassandra.sh";
-		try {
-			ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes), expHosts);
-			//ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes));
-            pb.directory(new File(scriptPath));
-			pb.redirectErrorStream(true);
-			Process p = pb.start();
-			InputStream stdout = p.getInputStream ();
-			
-			BufferedReader reader = new BufferedReader (new InputStreamReader(stdout));
-			while ((line = reader.readLine ()) != null) {
-				LOGGER.info ("Stdout: " + line);
-			}
-			int return_code=p.waitFor();
-			LOGGER.info("Return Code:" + return_code);
-		} catch (IOException e) {
-			LOGGER.error("Cassandra failed to start");
-			e.printStackTrace();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+
+		abortRun(expHosts);
 		
 		try {
-			cassandraThread.join();
+			dbThread.join();
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
