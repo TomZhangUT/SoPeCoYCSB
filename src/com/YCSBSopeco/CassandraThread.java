@@ -13,6 +13,8 @@ public class CassandraThread implements Runnable {
 
 	private int numDBNodes;
 	private String scriptPath;
+	private String dbPath;
+	private String dbData;
 	private String hosts;
 	
 	private boolean finished = false;
@@ -23,10 +25,12 @@ public class CassandraThread implements Runnable {
 	private static final Logger LOGGER = LoggerFactory
 			.getLogger(YCSBMEC.class);
 	
-	public CassandraThread(int nodes, String expHosts, String path)
+	public CassandraThread(int nodes, String expHosts, String sPath, String dPath, String dData)
 	{
 			numDBNodes=nodes;
-			scriptPath=path;
+			scriptPath=sPath;
+			dbPath=dPath;
+			dbData=dData;
 			hosts=expHosts;
 			finished=false;
 	}
@@ -43,7 +47,7 @@ public class CassandraThread implements Runnable {
 		//String command = scriptPath+"/runCassandra.sh";
 		
 		try {
-			ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes), hosts);
+			ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes), hosts, dbPath, dbData);
 			//ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes));
             pb.directory(new File(scriptPath));
 			pb.redirectErrorStream(true);
@@ -54,7 +58,7 @@ public class CassandraThread implements Runnable {
 			BufferedReader reader = new BufferedReader (new InputStreamReader(stdout));
 			while ((line = reader.readLine ()) != null) {
 				LOGGER.info ("Stdout: " + line);
-				if (line.contains("Startup completed!"))
+				if (line.contains("Now serving reads."))
 				{
 					LOGGER.debug("Set finished to true");
 					finished = true;

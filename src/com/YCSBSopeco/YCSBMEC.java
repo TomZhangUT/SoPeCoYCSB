@@ -33,6 +33,10 @@ public class YCSBMEC extends AbstractMEController {
 	 */
 	private static final Logger LOGGER = LoggerFactory
 			.getLogger(YCSBMEC.class);
+	
+	private String DBsetup="default";
+	
+	private String DBshutdown="default";
 
 	/**
 	 * String constant for the measurement environment controller name
@@ -84,51 +88,75 @@ public class YCSBMEC extends AbstractMEController {
 
 
 	/**
-	 * the number of nodes the DB will operate on
+	 * Path to scripts. Generally installed directory.
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "general")
 	String scriptPath= "/home/tom/git/SoPeCoYCSB/res";
+	
+	/**
+	 * Path to database
+	 */
+	@InputParameter(namespace = "general")
+	String DBPath= "/home/master/tom/work/localhost/cassandra";
+	
+	/**
+	 * Path of saved data of databases
+	 */
+	@InputParameter(namespace = "general")
+	String DBdataDirectory = "~/work/localhost/data";
+	
+	/**
+	 * Path of saved data of databases
+	 */
+	@InputParameter(namespace = "general")
+	String YCSBpath = "/home/master/tom/work/n1/ycsb-0.1.4";
 
+	/**
+	 * Path of saved data of databases
+	 */
+	@InputParameter(namespace = "general")
+	String JAVApath = "/home/master/tom/work/n1/java";
+	
 	/**
 	 * the number of nodes the DB will operate on for that experiment run. Counts from the first node in the host list. 
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "db")
 	int numDBNodes= 1;
 
 	/**
 	 * the list of ip addresses where the db is run
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "db")
 	String hosts= "localhost";
 
 	/**
 	 * the list of ip addresses where the workload is run
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "ycsb.workload")
 	String clients= "localhost";
 
 	/**
 	 * the workload implementation to use
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "ycsb.workload")
 	String workloadname = "com.yahoo.ycsb.workloads.CoreWorkload";
 
 	/**
 	 * the DB implementation to use
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "ycsb.workload")
 	String dbname = "cassandra-10";
 
 	/**
 	 * true to do transactions, false to insert data
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "ycsb.workload")
 	boolean dotransactions = false;
 
 	/**
 	 * the total number of threads 
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "ycsb.workload")
 	int tcount = 1;
 
 	/**
@@ -141,82 +169,94 @@ public class YCSBMEC extends AbstractMEController {
 	 * target throughputs, and measure the resulting latency for each. Zero 
 	 * or negative input for default
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "ycsb.workload")
 	int ttarget = 0;
 
 	/**
 	 * the number of records inserted
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "ycsb.workload")
 	int recordcount= 1000;
 
 	/**
 	 * the maximum number of operations
 	 * (zero or negative for no limit)
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "ycsb.workload")
 	int operationcount = 0;
 
 	/**
 	 * number of inserts 
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "ycsb.workload")
 	int insertcount = 0;
 
 	/**
 	 * number of fields in the database
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "ycsb.workload")
 	int fieldcount= 5;
 
 	/**
 	 * length of fields in the database
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "ycsb.workload")
 	int fieldlength= 10;
 
 	/**
 	 * the maximum possible scan length of a workload 
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "ycsb.workload")
 	int maxscanlength = 50;
 
 	/**
 	 * the number of seconds client threads
 	 * are active until threads are terminated
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "ycsb.workload")
 	int maxexecutiontime = 30;
 
 	/**
 	 * fraction of reads in a generated workload
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "ycsb.workload")
 	double readproportion= 0.95;
 
 	/**
 	 * fraction of inserts in a generated workload
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "ycsb.workload")
 	double insertproportion= 0.05;
 
 	/**
 	 * fraction of scans in a generated workload
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "ycsb.workload")
 	double scanproportion= 0.0;
 
 	/**
 	 * fraction of inputs in a generated workload
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "ycsb.workload")
 	double inputproportion= 0.0;
 
 	/**
 	 * fraction of updates in a generated workload
 	 */
-	@InputParameter(namespace = "my.input")
+	@InputParameter(namespace = "ycsb.workload")
 	double updateproportion= 0.0;
+	
+	/**
+	 * type of distribution when running workload
+	 */
+	@InputParameter(namespace = "ycsb.workload")
+	String requestDistribution= "uniform";
+	
+	/**
+	 * name of tested table
+	 */
+	@InputParameter(namespace = "ycsb.workload")
+	String table="usertable";
 
 	/**
 	 * runtime of the experiment in milliseconds
@@ -315,7 +355,13 @@ public class YCSBMEC extends AbstractMEController {
 	 */
 	@Override
 	protected void prepareExperimentSeries() {
-		LOGGER.info("Preparing experiment series - nothing todo");
+		LOGGER.info("Preparing experiment series");
+		dbname=dbname.toLowerCase();
+		if (dbname.contains("cassandra"))
+		{
+			DBsetup="./setupCassandra.sh";
+			DBshutdown="./shutdownCassandra.sh";
+		}
 	}
 
 	protected void filteredOutput(String line)
@@ -347,10 +393,9 @@ public class YCSBMEC extends AbstractMEController {
 	protected void abortRun(String expHosts)
 	{
 		String line;
-		String command="./shutdownCassandra.sh";
+		String command=DBshutdown;
 		try {
 			ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes), expHosts);
-			//ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes));
 			pb.directory(new File(scriptPath));
 			pb.redirectErrorStream(true);
 			Process p = pb.start();
@@ -380,8 +425,6 @@ public class YCSBMEC extends AbstractMEController {
 
 		LOGGER.info("Starting experiment run");
 
-		LOGGER.info("Starting Cassandra");
-
 		List<String> hostList = Arrays.asList(hosts.split(","));
 
 		String startString="";
@@ -397,11 +440,25 @@ public class YCSBMEC extends AbstractMEController {
 				expHosts=expHosts.concat(",");
 			}
 
-		}
+		} 
 
-		CassandraThread cRun = new CassandraThread(numDBNodes, expHosts, scriptPath);
+		CassandraThread cRun = null; //extend all db threads from same parent class
+		if (dbname.contains("cassandra"))
+		{
+			cRun = new CassandraThread(numDBNodes, expHosts, scriptPath, DBPath, DBdataDirectory);
+		}
+		else
+		{
+			LOGGER.info("Db type is currently not supported.");
+			LOGGER.info("Key-value stores supported:");
+			LOGGER.info("cassandra");
+			LOGGER.info("\n");
+			LOGGER.info("Aborting experiment run");
+			return;
+		}
 		Thread dbThread = new Thread(cRun);
 		dbThread.start();
+		
 		while (!cRun.isFinished())
 		{
 			try {
@@ -429,10 +486,9 @@ public class YCSBMEC extends AbstractMEController {
 		}
 		
 		String line;
-		String command="./setupCassandra.sh";
+		String command=DBsetup;
 		try {
 			ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes), expHosts);
-			//ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes));
 			pb.directory(new File(scriptPath));
 			pb.redirectErrorStream(true);
 			Process p = pb.start();
@@ -477,6 +533,10 @@ public class YCSBMEC extends AbstractMEController {
 		list.add(Double.toString(inputproportion));
 		list.add(Double.toString(updateproportion));
 		list.add(clients);
+		list.add(requestDistribution);
+		list.add(table);
+		list.add(YCSBpath);
+		list.add(JAVApath);
 
 		try {
 			ProcessBuilder pb = new ProcessBuilder(list);
