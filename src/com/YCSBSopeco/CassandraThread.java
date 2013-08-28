@@ -60,7 +60,11 @@ public class CassandraThread implements Runnable {
 				LOGGER.info ("Stdout: " + line);
 				if (line.contains("Now serving reads."))
 				{
-					LOGGER.debug("Set finished to true");
+					finished = true;
+				}
+				else if (line.contains("java.net.BindException"))
+				{
+					LOGGER.debug("Cassandra already running");
 					finished = true;
 				}
 			}

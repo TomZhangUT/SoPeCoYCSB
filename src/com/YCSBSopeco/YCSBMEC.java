@@ -128,7 +128,19 @@ public class YCSBMEC extends AbstractMEController {
 	 */
 	@InputParameter(namespace = "db")
 	String hosts= "localhost";
+	
+	/**
+	 * the placement Strategy of Cassandra
+	 */
+	@InputParameter(namespace = "db.cassandra")
+	String placementStrategy = "NetworkTopologyStrategy";
 
+	/**
+	 * the strategy options of cassandra
+	 */
+	@InputParameter(namespace = "db.cassandra")
+	String strategy_options = "replication_factor:3";
+	
 	/**
 	 * the list of ip addresses where the workload is run
 	 */
@@ -362,6 +374,8 @@ public class YCSBMEC extends AbstractMEController {
 			DBsetup="./setupCassandra.sh";
 			DBshutdown="./shutdownCassandra.sh";
 		}
+		
+		hosts=hosts.replace("\\s","");
 	}
 
 	protected void filteredOutput(String line)
@@ -488,7 +502,7 @@ public class YCSBMEC extends AbstractMEController {
 		String line;
 		String command=DBsetup;
 		try {
-			ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes), expHosts);
+			ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes), expHosts, placementStrategy, strategy_options);
 			pb.directory(new File(scriptPath));
 			pb.redirectErrorStream(true);
 			Process p = pb.start();
@@ -510,7 +524,7 @@ public class YCSBMEC extends AbstractMEController {
 			}
 			return;
 		} 
-		
+
 		command="./runYCSB.sh";
 		List<String> list = new ArrayList<String>();
 		list.add(command);
@@ -537,8 +551,8 @@ public class YCSBMEC extends AbstractMEController {
 		list.add(table);
 		list.add(YCSBpath);
 		list.add(JAVApath);
-
-		try {
+		
+		try {	
 			ProcessBuilder pb = new ProcessBuilder(list);
 			pb.directory(new File(scriptPath));
 			pb.redirectErrorStream(true);
@@ -549,7 +563,7 @@ public class YCSBMEC extends AbstractMEController {
 			while ((line = reader.readLine ()) != null) {
 				filteredOutput(line);
 				
-				if (line.contains("InvalidRequestException"))
+				if (line.contains("InvalidRequestException")||line.contains("Still waiting for thread"))
 				{
 					LOGGER.error("Improper Setup. Aborting Experiment Run");
 					abortRun(expHosts);
