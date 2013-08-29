@@ -103,7 +103,7 @@ public class YCSBMEC extends AbstractMEController {
 	 * Path of saved data of databases
 	 */
 	@InputParameter(namespace = "general")
-	String DBdataDirectory = "~/work/localhost/data";
+	String DBdataDirectory = "/home/master/tom/work/localhost/data";
 	
 	/**
 	 * Path of saved data of databases
@@ -133,7 +133,31 @@ public class YCSBMEC extends AbstractMEController {
 	 * the placement Strategy of Cassandra
 	 */
 	@InputParameter(namespace = "db.cassandra")
-	String placementStrategy = "NetworkTopologyStrategy";
+	String clusterName = "Test Cluster";
+	
+	/**
+	 * type of partitioner for cassandra
+	 */
+	@InputParameter(namespace = "db.cassandra")
+	String partitioner = "org.apache.cassandra.dht.RandomPartitioner";
+	
+	/**
+	 * type of partitioner for cassandra
+	 */
+	@InputParameter(namespace = "db.cassandra")
+	String endpointSnitch = "org.apache.cassandra.locator.SimpleSnitch";
+	
+	/**
+	 * type of partitioner for cassandra
+	 */
+	@InputParameter(namespace = "db.cassandra")
+	Boolean hintedHandoff = true;
+	
+	/**
+	 * the placement Strategy of Cassandra
+	 */
+	@InputParameter(namespace = "db.cassandra")
+	String placementStrategy = "SimpleStrategy";
 
 	/**
 	 * the strategy options of cassandra
@@ -269,6 +293,31 @@ public class YCSBMEC extends AbstractMEController {
 	 */
 	@InputParameter(namespace = "ycsb.workload")
 	String table="usertable";
+	
+	/**
+	 * read consistency of Cassandra
+	 */
+	@InputParameter(namespace = "ycsb.workload.quorum")
+	String readConsistencyLevel = "ONE";
+	
+	/**
+	 * write consistency of Cassandra
+	 */
+	@InputParameter(namespace = "ycsb.workload.quorum")
+	String writeConsistencyLevel = "ONE";
+	
+	/**
+	 * scan consistency of Cassandra
+	 */
+	@InputParameter(namespace = "ycsb.workload.quorum")
+	String scanConsistencyLevel = "ONE";
+	
+	/**
+	 * scan consistency of Cassandra
+	 */
+	@InputParameter(namespace = "ycsb.workload.quorum")
+	String deleteConsistencyLevel = "ONE";
+	
 
 	/**
 	 * runtime of the experiment in milliseconds
@@ -369,13 +418,27 @@ public class YCSBMEC extends AbstractMEController {
 	protected void prepareExperimentSeries() {
 		LOGGER.info("Preparing experiment series");
 		dbname=dbname.toLowerCase();
+		String databaseClass="";
+		
 		if (dbname.contains("cassandra"))
 		{
 			DBsetup="./setupCassandra.sh";
 			DBshutdown="./shutdownCassandra.sh";
+			databaseClass="cassandra";
 		}
 		
 		hosts=hosts.replace("\\s","");
+		
+		readConsistencyLevel=readConsistencyLevel.toUpperCase();
+		writeConsistencyLevel=writeConsistencyLevel.toUpperCase();
+		scanConsistencyLevel=scanConsistencyLevel.toUpperCase();
+		deleteConsistencyLevel=deleteConsistencyLevel.toUpperCase();
+		
+		readConsistencyLevel=databaseClass.concat(".readconsistencylevel=").concat(readConsistencyLevel);
+		writeConsistencyLevel=databaseClass.concat(".writeconsistencylevel=").concat(writeConsistencyLevel);
+		scanConsistencyLevel=databaseClass.concat(".scanconsistencylevel=").concat(scanConsistencyLevel);
+		deleteConsistencyLevel=databaseClass.concat(".deleteconsistencylevel=").concat(deleteConsistencyLevel);
+		
 	}
 
 	protected void filteredOutput(String line)
@@ -428,6 +491,8 @@ public class YCSBMEC extends AbstractMEController {
 			e.printStackTrace();
 		}
 	}
+	
+
 
 	/**
 	 * Executes a single experiment run. The values of all parameters annotated
@@ -456,10 +521,24 @@ public class YCSBMEC extends AbstractMEController {
 
 		} 
 
-		CassandraThread cRun = null; //extend all db threads from same parent class
+		DBthread cRun = null; //extend all db threads from same parent class
 		if (dbname.contains("cassandra"))
 		{
-			cRun = new CassandraThread(numDBNodes, expHosts, scriptPath, DBPath, DBdataDirectory);
+			String command = "./runCassandra.sh";
+			List<String> list = new ArrayList<String>();
+			list.add(command);
+			list.add(clusterName);
+			list.add(Integer.toString(numDBNodes));
+			list.add(expHosts);
+			list.add(DBPath);
+			list.add(DBdataDirectory);
+			list.add(partitioner);
+			list.add(endpointSnitch);
+			list.add(placementStrategy);
+			list.add(strategy_options);
+			list.add(Boolean.toString(hintedHandoff));
+			
+			cRun = new CassandraThread(list,scriptPath);
 		}
 		else
 		{
@@ -528,10 +607,15 @@ public class YCSBMEC extends AbstractMEController {
 		command="./runYCSB.sh";
 		List<String> list = new ArrayList<String>();
 		list.add(command);
-		list.add(Boolean.toString(dotransactions));
+		list.add(YCSBpath);
+		list.add(JAVApath);
+		list.add(clients);
+		list.add(table);
 		list.add(dbname);
 		list.add(workloadname);
 		list.add(expHosts);
+		list.add(Boolean.toString(dotransactions));
+		list.add(requestDistribution);
 		list.add(Integer.toString(tcount));
 		list.add(Integer.toString(ttarget));
 		list.add(Integer.toString(recordcount));
@@ -546,11 +630,10 @@ public class YCSBMEC extends AbstractMEController {
 		list.add(Double.toString(scanproportion));
 		list.add(Double.toString(inputproportion));
 		list.add(Double.toString(updateproportion));
-		list.add(clients);
-		list.add(requestDistribution);
-		list.add(table);
-		list.add(YCSBpath);
-		list.add(JAVApath);
+		list.add(readConsistencyLevel);
+		list.add(writeConsistencyLevel);
+		list.add(scanConsistencyLevel);
+		list.add(deleteConsistencyLevel);
 		
 		try {	
 			ProcessBuilder pb = new ProcessBuilder(list);

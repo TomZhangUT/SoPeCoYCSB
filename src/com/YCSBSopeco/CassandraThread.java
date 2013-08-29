@@ -5,18 +5,18 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.math.BigInteger;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class CassandraThread implements Runnable {
+public class CassandraThread extends DBthread {
 
 	private int numDBNodes;
 	private String scriptPath;
-	private String dbPath;
-	private String dbData;
-	private String hosts;
-	
+	private String tokenList;
+	private List<String> commandList;
 	private boolean finished = false;
 	
 	/**	
@@ -25,14 +25,35 @@ public class CassandraThread implements Runnable {
 	private static final Logger LOGGER = LoggerFactory
 			.getLogger(YCSBMEC.class);
 	
-	public CassandraThread(int nodes, String expHosts, String sPath, String dPath, String dData)
-	{
-			numDBNodes=nodes;
+	public CassandraThread(List<String> list, String sPath)
+	{	
+			commandList=list;
+			numDBNodes=Integer.parseInt(list.get(2));
+			tokenList=calculateTokes(numDBNodes);
+			commandList.add(tokenList);
+			
 			scriptPath=sPath;
-			dbPath=dPath;
-			dbData=dData;
-			hosts=expHosts;
 			finished=false;
+	}
+	
+	protected String calculateTokes(int numNodes)
+	{
+		String tokenList="";
+		for (int i=0;i<numNodes;i++)
+		{
+			Integer node = i;
+	        Integer total = numNodes;
+	        
+	        BigInteger token = BigInteger.valueOf(node);
+	        BigInteger pow = BigInteger.valueOf(2).pow(127).subtract(BigInteger.ONE);
+	        token = token.multiply(pow).divide(BigInteger.valueOf(total));
+	        
+	        tokenList=tokenList.concat(token.abs().toString());
+	        tokenList=tokenList.concat(",");
+	        
+	        System.out.println("Token "+node+" of "+total+": "+token.abs().toString());
+		}
+        return tokenList;
 	}
 	
 	public boolean isFinished()
@@ -42,12 +63,10 @@ public class CassandraThread implements Runnable {
 	
 	@Override
 	public void run() {
-		String command = "./runCassandra.sh";
 		String line;
-		//String command = scriptPath+"/runCassandra.sh";
 		
 		try {
-			ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes), hosts, dbPath, dbData);
+			ProcessBuilder pb = new ProcessBuilder(commandList);
 			//ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes));
             pb.directory(new File(scriptPath));
 			pb.redirectErrorStream(true);
