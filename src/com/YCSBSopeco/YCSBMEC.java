@@ -417,28 +417,6 @@ public class YCSBMEC extends AbstractMEController {
 	@Override
 	protected void prepareExperimentSeries() {
 		LOGGER.info("Preparing experiment series");
-		dbname=dbname.toLowerCase();
-		String databaseClass="";
-		
-		if (dbname.contains("cassandra"))
-		{
-			DBsetup="./setupCassandra.sh";
-			DBshutdown="./shutdownCassandra.sh";
-			databaseClass="cassandra";
-		}
-		
-		hosts=hosts.replace("\\s","");
-		
-		readConsistencyLevel=readConsistencyLevel.toUpperCase();
-		writeConsistencyLevel=writeConsistencyLevel.toUpperCase();
-		scanConsistencyLevel=scanConsistencyLevel.toUpperCase();
-		deleteConsistencyLevel=deleteConsistencyLevel.toUpperCase();
-		
-		readConsistencyLevel=databaseClass.concat(".readconsistencylevel=").concat(readConsistencyLevel);
-		writeConsistencyLevel=databaseClass.concat(".writeconsistencylevel=").concat(writeConsistencyLevel);
-		scanConsistencyLevel=databaseClass.concat(".scanconsistencylevel=").concat(scanConsistencyLevel);
-		deleteConsistencyLevel=databaseClass.concat(".deleteconsistencylevel=").concat(deleteConsistencyLevel);
-		
 	}
 
 	protected void filteredOutput(String line)
@@ -502,8 +480,32 @@ public class YCSBMEC extends AbstractMEController {
 	@Override
 	protected void runExperiment() throws ExperimentFailedException {
 
+		LOGGER.info("Preparing Parameters");
+		
+		dbname=dbname.toLowerCase();
+		String databaseClass="";
+		
+		if (dbname.contains("cassandra"))
+		{
+			DBsetup="./setupCassandra.sh";
+			DBshutdown="./shutdownCassandra.sh";
+			databaseClass="cassandra";
+		}
+		
+		hosts=hosts.replace("\\s","");
+		
+		readConsistencyLevel=readConsistencyLevel.toUpperCase();
+		writeConsistencyLevel=writeConsistencyLevel.toUpperCase();
+		scanConsistencyLevel=scanConsistencyLevel.toUpperCase();
+		deleteConsistencyLevel=deleteConsistencyLevel.toUpperCase();
+		
+		readConsistencyLevel=databaseClass.concat(".readconsistencylevel=").concat(readConsistencyLevel);
+		writeConsistencyLevel=databaseClass.concat(".writeconsistencylevel=").concat(writeConsistencyLevel);
+		scanConsistencyLevel=databaseClass.concat(".scanconsistencylevel=").concat(scanConsistencyLevel);
+		deleteConsistencyLevel=databaseClass.concat(".deleteconsistencylevel=").concat(deleteConsistencyLevel);
+		
 		LOGGER.info("Starting experiment run");
-
+		
 		List<String> hostList = Arrays.asList(hosts.split(","));
 
 		String startString="";
