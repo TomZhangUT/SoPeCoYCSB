@@ -646,7 +646,7 @@ public class YCSBMEC extends AbstractMEController {
 
 			BufferedReader reader = new BufferedReader (new InputStreamReader(stdout));
 			while ((line = reader.readLine ()) != null) {
-				filteredOutput(line);
+				LOGGER.info ("Stdout: " + line);
 				
 				if (line.contains("InvalidRequestException")||line.contains("Still waiting for thread"))
 				{
