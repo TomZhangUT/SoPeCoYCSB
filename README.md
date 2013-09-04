@@ -18,6 +18,6 @@ Note: $DERBY_HOME, $TOMCAT_HOME, $CASSANDRA_HOME must be initialized
 3. Start Cassandra
 ./$CASSANDRA_HOME/bin/cassandra
 
-4. Visit SoPeCo Server URL. Default is http://localhost:8089/sopeco
+4. Visit SoPeCo Server URL. Default is http://localhost:8080/sopeco
 
 5. Use WEB-UI to set parameters for experiments and run experiments
