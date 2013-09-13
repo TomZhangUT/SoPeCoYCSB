@@ -11,6 +11,7 @@ import org.sopeco.persistence.entities.definition.ExperimentTerminationCondition
 import org.sopeco.persistence.entities.exceptions.ExperimentFailedException;
 
 import java.io.*;
+import java.math.BigInteger;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -450,7 +451,7 @@ public class YCSBMEC extends AbstractMEController {
 		String line;
 		String command=DBshutdown;
 		try {
-			ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes), expHosts, DBdataDirectory);
+			ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes), expHosts, DBdataDirectory, DBPath);
 			pb.directory(new File(scriptPath));
 			pb.redirectErrorStream(true);
 			Process p = pb.start();
@@ -468,6 +469,26 @@ public class YCSBMEC extends AbstractMEController {
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
+	}
+	
+	protected String calculateTokes(int numNodes)
+	{
+		String tokenList="";
+		for (int i=0;i<numNodes;i++)
+		{
+			Integer node = i;
+			Integer total = numNodes;
+
+			BigInteger token = BigInteger.valueOf(node);
+			BigInteger pow = BigInteger.valueOf(2).pow(127).subtract(BigInteger.ONE);
+			token = token.multiply(pow).divide(BigInteger.valueOf(total));
+
+			tokenList=tokenList.concat(token.abs().toString());
+			tokenList=tokenList.concat(",");
+
+			System.out.println("Token "+node+" of "+total+": "+token.abs().toString());
+		}
+		return tokenList;
 	}
 	
 
@@ -523,11 +544,12 @@ public class YCSBMEC extends AbstractMEController {
 
 		} 
 
-		DBthread cRun = null; //extend all db threads from same parent class
+		String command = "default";
+		List<String> list = new ArrayList<String>();
+		//DBthread cRun = null; //extend all db threads from same parent class
 		if (dbname.contains("cassandra"))
 		{
-			String command = "./runCassandra.sh";
-			List<String> list = new ArrayList<String>();
+			command = "./runCassandra.sh";
 			list.add(command);
 			list.add(clusterName);
 			list.add(Integer.toString(numDBNodes));
@@ -539,8 +561,9 @@ public class YCSBMEC extends AbstractMEController {
 			list.add(placementStrategy);
 			list.add(strategy_options);
 			list.add(Boolean.toString(hintedHandoff));
+			list.add(calculateTokes(numDBNodes));
 			
-			cRun = new CassandraThread(list,scriptPath);
+			//cRun = new CassandraThread(list,scriptPath);
 		}
 		else
 		{
@@ -551,9 +574,10 @@ public class YCSBMEC extends AbstractMEController {
 			LOGGER.info("Aborting experiment run");
 			return;
 		}
-		Thread dbThread = new Thread(cRun);
-		dbThread.start();
+		//Thread dbThread = new Thread(cRun);
+		//dbThread.start();
 		
+		/*
 		while (!cRun.isFinished())
 		{
 			try {
@@ -570,18 +594,44 @@ public class YCSBMEC extends AbstractMEController {
 				return;
 			}
 		}
-		
-		try 
-		{
-			Thread.sleep(5000);
-		}
-		catch (InterruptedException e)
-		{
-			LOGGER.error("Thread interrupted");
-		}
+		*/
 		
 		String line;
-		String command=DBsetup;
+
+		try {
+			ProcessBuilder pb = new ProcessBuilder(list);
+			//ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes));
+			pb.directory(new File(scriptPath));
+			pb.redirectErrorStream(true);
+			Process p = pb.start();
+
+			InputStream stdout = p.getInputStream ();
+
+			BufferedReader reader = new BufferedReader (new InputStreamReader(stdout));
+			while ((line = reader.readLine ()) != null) {
+				LOGGER.info ("Stdout: " + line);
+				if (line.contains("Now serving reads."))
+				{
+					break;
+				}
+				else if (line.contains("java.net.BindException"))
+				{
+					LOGGER.debug("Cassandra already running");
+				}
+				else if (line.contains("Error occurred during initialization of VM"))
+				{
+					Thread.currentThread().interrupt();
+				}
+			}
+
+			//int return_code=p.waitFor();
+			//LOGGER.info("Return Code:" + return_code);
+		} catch (IOException e) {
+			e.printStackTrace();
+			LOGGER.error("Check script path");
+		}
+		
+		command=DBsetup;
 		try {
 			ProcessBuilder pb = new ProcessBuilder(command, Integer.toString(numDBNodes), expHosts, placementStrategy, strategy_options);
 			pb.directory(new File(scriptPath));
@@ -598,16 +648,17 @@ public class YCSBMEC extends AbstractMEController {
 		} catch (Exception e) {
 			LOGGER.error("Did not create database necessary for YCSB. Aborting experiment run");
 			abortRun(expHosts);
+			/*
 			try {
-				dbThread.join();
+				//dbThread.join();
 			} catch (InterruptedException e1) {
 				e1.printStackTrace();
-			}
+			}*/
 			return;
 		} 
 
 		command="./runYCSB.sh";
-		List<String> list = new ArrayList<String>();
+		list.clear();
 		list.add(command);
 		list.add(YCSBpath);
 		list.add(JAVApath);
@@ -653,11 +704,12 @@ public class YCSBMEC extends AbstractMEController {
 					LOGGER.error("Improper Setup. Aborting Experiment Run");
 					abortRun(expHosts);
 					p.destroy();
+					/*
 					try {
-						dbThread.join();
+						//dbThread.join();
 					} catch (InterruptedException e) {
 						e.printStackTrace();
-					}
+					}*/
 					return;
 				}
 				
@@ -698,11 +750,12 @@ public class YCSBMEC extends AbstractMEController {
 
 		abortRun(expHosts);
 		
+		/*
 		try {
-			dbThread.join();
+			//dbThread.join();
 		} catch (InterruptedException e) {
 			e.printStackTrace();
-		}
+		}*/
 		
 		LOGGER.info("Finished experiment run");
 
